@@ -41,6 +41,7 @@
                     </svg>
                 </button>
             </div>
+            <h3 id="error-message" style="display: none; margin: 10px auto 0 auto; text-align: center; width: max-content;">Vigane sisend! Palun sisesta kehtiv toode.</h3>
         </div>
         <div class="flex-container" id="results"></div>
     </div>
@@ -64,13 +65,39 @@
         });
 
         const element = document.querySelector('.loader-container');
+
+        function sanitizeInput(input) {
+            // Remove any non-alphanumeric characters except spaces
+            return input.replace(/[^a-zA-Z0-9\s]/g, '');
+        }
+
+        function validateInput(input) {
+            // Ensure the input is not empty and does not exceed 100 characters
+            return input && input.length <= 100;
+        }
+
         function searchProduct() {
-            element.style.display = 'block';
             const query = document.getElementById('query').value;
+            const sanitizedQuery = sanitizeInput(query);
+            const errorMessage = document.getElementById('error-message');
+
+            console.log('Sanitized Query:', sanitizedQuery);
+            console.log('Is Valid Input:', validateInput(sanitizedQuery));
+
+            if (!validateInput(sanitizedQuery)) {
+                errorMessage.style.display = 'block';
+                console.log('Error Message Displayed');
+                return;
+            } else {
+                errorMessage.style.display = 'none';
+            }
+
+            element.style.display = 'block';
+
             fetch('/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query }),
+                body: JSON.stringify({ query: sanitizedQuery }),
             })
                 .then(response => response.json())
                 .then(data => {

@@ -43,7 +43,7 @@ def selver(sisend):
     # Eemaldab mingisugused kahtlased non-essential errorid seotud mingi USB jamaga (võib ära võtta, siis kood töötab, aga mingid sõnumid tulevad)
     options = webdriver.ChromeOptions()
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    service = Service('chromedriver')
+    service = Service('./chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
 
     urllib.parse.quote(sisend)
@@ -100,7 +100,7 @@ def prisma(sisend):
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
     # driver setup
-    service = Service('chromedriver')
+    service = Service('./chromedriver')
     driver = webdriver.Chrome(service=service, options=options)
     
     # veebileht URL

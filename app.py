@@ -258,7 +258,16 @@ def ümberjärjesta_andmetabel(viide_df, siht_df):
     # Loome uue DataFrame'i ümberjärjestatud andmetega ja lähtestame indeksid
     return pd.DataFrame(ümberjärjestatud_andmed).reset_index(drop=True)
 
+def sanitize_input(sisend):
+    # Remove any non-alphanumeric characters except spaces
+    sanitized = re.sub(r'[^a-zA-Z0-9\s]', '', sisend)
+    return sanitized
 
+def validate_input(sisend):
+    # Ensure the input is not empty and does not exceed 100 characters
+    if not sisend or len(sisend) > 100:
+        return False
+    return True
 
 @app.route('/')
 def index():
@@ -270,8 +279,12 @@ def search():
     # Saame kasutaja sisendi JSON vormingus
     sisend = request.json.get('query')
     if not sisend:
-        # Tagastame veateate, kui sisend puudub
         return jsonify({"error": "Palun sisesta toode!"}), 400
+
+    # Sanitize and validate input
+    sisend = sanitize_input(sisend)
+    if not validate_input(sisend):
+        return jsonify({"error": "Vigane sisend!"}), 400
 
     # Pärib andmeid erinevatest kauplustest
     selver_data = selver(sisend)  # Selveri andmed
@@ -296,17 +309,6 @@ def search():
     return jsonify(data)
 
 
-def find_free_port():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        return s.getsockname()[1]
-
 if __name__ == '__main__':
-    port = find_free_port()
-    url = f"http://127.0.0.1:{port}/"
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
-    def open_browser():
-        webbrowser.open_new(url)
-
-    Timer(2, open_browser).start()
-    app.run(debug=True, port=port, use_reloader=False)

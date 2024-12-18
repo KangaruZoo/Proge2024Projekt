@@ -38,6 +38,121 @@ max_read = 20
 
 app = Flask(__name__)
 
+# Web scraper Selveri lehe jaoks. 
+def selver(sisend):
+    # Eemaldab mingisugused kahtlased non-essential errorid seotud mingi USB jamaga (võib ära võtta, siis kood töötab, aga mingid sõnumid tulevad)
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    service = Service('chromedriver')
+    driver = webdriver.Chrome(service=service, options=options)
+
+    urllib.parse.quote(sisend)
+    url = 'https://www.selver.ee/search?q=' + sisend
+
+    driver.get(url)
+
+    tooted = []
+    hinnad = []
+
+    try:
+        # Ootab veits, et veebikas laeks
+        time.sleep(1)
+
+        for i in range(1):  # scrollib lihtsalt faili lõppu?
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)  # ootab, et laadida contenti
+        
+        # Selveri lehel on kõik tooded "Kaartidena" --> laeb kaardid
+        tootekaart = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME, 'ProductCard'))
+        )
+
+        for el in tootekaart:
+            if len(tooted) >= max_read:
+                break
+            # Leiab Tootenime kaardist
+            nimeelement = el.find_elements(By.CLASS_NAME, 'ProductCard__link')
+            target_index = 1  # spetsiifiline <a> järjestus HTML-is
+            if len(nimeelement) > target_index:
+                tootenimi = nimeelement[target_index].text
+            else:
+                tootenimi = None 
+            
+            # Paneb listi
+            tooted.append(tootenimi)
+            
+            # Leiab Tootehinna kaardist
+            hinnaelement = el.find_element(By.CLASS_NAME, 'ProductPrice')
+            tootehind = hinnaelement.text.split("\n")[0]
+
+            # Paneb listi
+            hinnad.append(tootehind)
+
+    finally:
+        driver.quit()
+
+    return pd.DataFrame({'Toode': tooted, 'Hind': hinnad})
+
+# Web scraper Prisma veebilehe jaoks. 
+def prisma(sisend):
+
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
+    # driver setup
+    service = Service('chromedriver')
+    driver = webdriver.Chrome(service=service, options=options)
+    
+    # veebileht URL
+    urllib.parse.quote(sisend)
+    url = 'https://www.prismamarket.ee/' + 'products/search/' + sisend
+
+    driver.get(url)
+
+    # listid toodete jaoks
+    tooted = []
+    hinnad = []
+
+    try:
+        # Ootab veits et, veebikas laeks
+        time.sleep(1)
+
+        for i in range(1):  # scrollib lihtsalt faili lõppu?
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(1.5)  # ootab, et laadida contenti
+        
+        # Prisma lehel on kõik tooded "Kaartidena". 
+        tootekaart = driver.find_elements(By.CLASS_NAME, "js-shelf-item")
+
+        for el in tootekaart:
+            if len(tooted) >= max_read:
+                break
+            # Leiab Tootenime kaardist
+            nimeelement = el.find_element(By.CLASS_NAME, 'name')
+            tootenimi = nimeelement.text.strip()
+ 
+            # Paneb listi
+            tooted.append(tootenimi)
+            
+            # Leiab Tootehinna esimese osa kaardist
+            hinnaelement = el.find_element(By.CLASS_NAME, 'whole-number ')
+            tootehind1 = hinnaelement.text.strip()
+
+            # Leiab Tootehinna teise osa kaardist
+            hinnaelement = el.find_element(By.CLASS_NAME, 'decimal')
+            tootehind2 = hinnaelement.text.strip()
+
+            tootehind = f"{tootehind1}.{tootehind2}"
+
+            # Paneb listi
+            hinnad.append(tootehind)
+
+    finally:
+        driver.quit()
+
+    return pd.DataFrame({'Toode': tooted, 'Hind': hinnad})
+
+
 # Web scraper Maxima veebilehe jaoks. 
 def maxima(sisend):
     # Kontrollime, kas sisend on olemas
@@ -172,16 +287,22 @@ def search():
         return jsonify({"error": "Vigane sisend!"}), 400
 
     # Pärib andmeid erinevatest kauplustest
+    selver_data = selver(sisend)  # Selveri andmed
     maxima_data = maxima(sisend)  # Maxima andmed
     rimi_data = rimi(sisend)  # Rimi andmed
+    prisma_data = prisma(sisend)
     
+    selver_data = ümberjärjesta_andmetabel(maxima_data, selver_data)
+    prisma_data = ümberjärjesta_andmetabel(maxima_data, prisma_data)
     rimi_data = ümberjärjesta_andmetabel(maxima_data, rimi_data)
 
 
     # Koondab andmed ühte struktuuri
     data = {
+        "Selver": selver_data.to_dict(orient='records'),
         "Maxima": maxima_data.to_dict(orient='records'),
-        "Rimi": rimi_data.to_dict(orient='records')
+        "Rimi": rimi_data.to_dict(orient='records'),
+        "Prisma": prisma_data.to_dict(orient='records')
     }
     
     # Tagastame andmed JSON vormingus
